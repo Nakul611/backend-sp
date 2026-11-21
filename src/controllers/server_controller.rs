@@ -13,6 +13,7 @@ use crate::{
         FinancialBurden, ResourceTelemetry, Server, ServerTerminalExecRequest,
         ServerTerminalExecResponse, WsEvent,
     },
+    services::SandboxService,
     state::AppState,
 };
 
@@ -560,7 +561,7 @@ pub async fn terminal_exec_server(
     let cmd = payload.command.trim();
 
     let session_id = format!("ssm-sess-{}", Uuid::new_v4().simple());
-    let duration_ms = 18 + (cmd.len() as u64 % 30);
+    let start_instant = std::time::Instant::now();
 
     let output = match cmd {
         "htop" | "top" => {
@@ -709,14 +710,16 @@ pub async fn terminal_exec_server(
              - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -".to_string()
         }
         _ => {
+            let role = server.role.as_deref().unwrap_or("worker");
+            let result = SandboxService::execute_sandbox_command(&server.id, &server.name, role, cmd);
             format!(
-                "[EXEC 0] Output from '{}':\n\
-                 Operation completed successfully on {} (Host: {}, Provider: {}).\n\
-                 Process returned exit code 0.",
-                cmd, server.name, server.host_ip, server.provider.to_uppercase()
+                "{}\n\n[Live Node Sandbox: {} | Exit Code: {}]",
+                result.output, result.sandbox_path, result.exit_code
             )
         }
     };
+
+    let duration_ms = start_instant.elapsed().as_millis().max(12) as u64;
 
     let final_output = if is_ssm {
         format!(

@@ -367,27 +367,15 @@ pub fn build_cloud_catalog() -> Vec<CloudCatalogService> {
 }
 
 pub async fn get_cloud_catalog(
+    State(state): State<AppState>,
     Query(query): Query<CloudCatalogQuery>,
 ) -> Result<Json<Vec<CloudCatalogService>>, AppError> {
-    let all = build_cloud_catalog();
-    let filtered: Vec<CloudCatalogService> = all
-        .into_iter()
-        .filter(|item| {
-            if let Some(ref p) = query.provider {
-                if !item.provider.eq_ignore_ascii_case(p) {
-                    return false;
-                }
-            }
-            if let Some(ref c) = query.category {
-                if !item.category.eq_ignore_ascii_case(c) {
-                    return false;
-                }
-            }
-            true
-        })
-        .collect();
+    let services = state
+        .live_pricing
+        .get_live_catalog(query.provider.as_deref(), query.category.as_deref())
+        .await;
 
-    Ok(Json(filtered))
+    Ok(Json(services))
 }
 
 pub async fn provision_servers(
@@ -409,23 +397,23 @@ pub async fn provision_servers(
         ));
     }
 
-    // Determine unit hourly rate and specs dynamically from the Cloud Catalog bridge
-    let catalog = build_cloud_catalog();
-    let catalog_match = catalog
-        .iter()
-        .find(|item| item.id == payload.instance_type && item.provider == payload.provider);
+    // Determine unit hourly rate dynamically in real-time from Cloud Provider APIs (zero stored catalog)
+    let unit_cost = state
+        .live_pricing
+        .get_live_price(&payload.provider, &payload.instance_type, &payload.region)
+        .await;
 
-    let (unit_cost, resource_type, default_tags) = if let Some(item) = catalog_match {
-        let r_type = match item.category.as_str() {
-            "storage" => "storage",
-            "gpu" => "gpu",
-            "kubernetes" => "k8s",
-            _ => "compute",
-        };
-        (item.hourly_cost, r_type, vec![item.category.clone(), item.id.clone()])
+    let resource_type = if payload.instance_type.contains("gpu") || payload.instance_type.contains("t4") {
+        "gpu"
+    } else if payload.instance_type.contains("s3") || payload.instance_type.contains("blob") || payload.instance_type.contains("storage") {
+        "storage"
+    } else if payload.instance_type.contains("rds") || payload.instance_type.contains("db") || payload.instance_type.contains("postgres") {
+        "database"
     } else {
-        (0.096, "compute", vec!["custom".to_string()])
+        "compute"
     };
+
+    let default_tags = vec![resource_type.to_string(), payload.instance_type.clone()];
 
     let now = Utc::now().timestamp();
     let mut provisioned = Vec::new();

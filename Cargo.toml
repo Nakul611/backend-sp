@@ -20,3 +20,4 @@ chrono = { version = "0.4", features = ["serde"] }
 futures-util = "0.3"
 uuid = { version = "1.11", features = ["v4", "serde"] }
 jsonwebtoken = { version = "12.0.0", features = ["rust_crypto"] }
+reqwest = { version = "0.13.5", default-features = false, features = ["json", "rustls"] }

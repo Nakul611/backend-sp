@@ -367,27 +367,15 @@ pub fn build_cloud_catalog() -> Vec<CloudCatalogService> {
 }
 
 pub async fn get_cloud_catalog(
+    State(state): State<AppState>,
     Query(query): Query<CloudCatalogQuery>,
 ) -> Result<Json<Vec<CloudCatalogService>>, AppError> {
-    let all = build_cloud_catalog();
-    let filtered: Vec<CloudCatalogService> = all
-        .into_iter()
-        .filter(|item| {
-            if let Some(ref p) = query.provider {
-                if !item.provider.eq_ignore_ascii_case(p) {
-                    return false;
-                }
-            }
-            if let Some(ref c) = query.category {
-                if !item.category.eq_ignore_ascii_case(c) {
-                    return false;
-                }
-            }
-            true
-        })
-        .collect();
+    let services = state
+        .live_pricing
+        .get_live_catalog(query.provider.as_deref(), query.category.as_deref())
+        .await;
 
-    Ok(Json(filtered))
+    Ok(Json(services))
 }
 
 pub async fn provision_servers(

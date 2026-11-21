@@ -16,6 +16,7 @@ pub struct AppState {
     pub notifications: Arc<RwLock<Vec<FleetNotification>>>,
     pub ws_tx: broadcast::Sender<String>,
     pub mongo_client: Option<mongodb::Client>,
+    pub live_pricing: Arc<crate::services::LivePricingService>,
 }
 
 impl AppState {
@@ -785,6 +786,7 @@ impl AppState {
             notifications: Arc::new(RwLock::new(initial_notifications)),
             ws_tx,
             mongo_client,
+            live_pricing: Arc::new(crate::services::LivePricingService::new()),
         }
     }
 
