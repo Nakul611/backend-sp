@@ -50,6 +50,8 @@ pub struct Project {
     pub idle_alert_threshold_minutes: i64,
     pub auto_stop_idle: bool,
     pub budget_cap_usd: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub budget_cadence: Option<String>, // "daily" | "weekly" | "monthly" | "yearly"
     pub member_ids: Vec<String>,
     pub server_count: i64,
     pub active_count: i64,
@@ -90,4 +92,6 @@ pub struct CreateProjectRequest {
     pub run_command: Option<String>,
     pub credential_id: Option<String>,
     pub idle_alert_threshold_minutes: Option<i64>,
+    pub budget_cap_usd: Option<f64>,
+    pub budget_cadence: Option<String>, // "daily" | "weekly" | "monthly" | "yearly"
 }
