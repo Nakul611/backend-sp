@@ -8,6 +8,7 @@ pub struct Credential {
     pub credential_type: String,
     pub ssh_user: String,
     pub fingerprint: Option<String>,
+    pub is_encrypted: bool,
     pub created_at: i64,
 }
 

@@ -270,6 +270,7 @@ impl AppState {
             credential_type: "ssh_pem".to_string(),
             ssh_user: "ubuntu".to_string(),
             fingerprint: Some("SHA256:4b:9a:12:cd:ef:88:99:aa".to_string()),
+            is_encrypted: true,
             created_at: now - 3600 * 48,
         };
 

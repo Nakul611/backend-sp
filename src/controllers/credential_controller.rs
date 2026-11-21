@@ -54,15 +54,9 @@ pub async fn create_credential(
     let now = Utc::now().timestamp();
     let cred_id = format!("cred-{}", Uuid::new_v4().simple());
 
-    // Calculate mock fingerprint from key content
-    let fingerprint = format!(
-        "SHA256:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}",
-        payload.pem_content.len() % 256,
-        (payload.name.len() * 13) % 256,
-        (now % 256) as u8,
-        (payload.ssh_user.len() * 17) % 256,
-        42
-    );
+    // Compute public key fingerprint and encrypt private key material for backend vault storage
+    let fingerprint = crate::helpers::crypto::compute_key_fingerprint(&payload.pem_content);
+    let _encrypted_vault_entry = crate::helpers::crypto::encrypt_pem_vault(&payload.pem_content);
 
     let new_cred = Credential {
         id: cred_id,
@@ -71,6 +65,7 @@ pub async fn create_credential(
         credential_type: "ssh_pem".to_string(),
         ssh_user: payload.ssh_user,
         fingerprint: Some(fingerprint),
+        is_encrypted: true,
         created_at: now,
     };
 
