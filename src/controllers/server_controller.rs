@@ -71,12 +71,14 @@ pub fn fetch_live_telemetry(server: &Server) -> ResourceTelemetry {
             burden: Some(burden),
         }
     } else if server.role.as_deref() == Some("database") || server.resource_type == "database" {
-        let ram_total = 32.0;
-        let ram_used = 18.0 + ((hash % 8) as f64) + ((now % 10) as f64 * 0.1);
-        let disk_total = 1000.0;
-        let disk_used = 340.0 + ((hash % 120) as f64);
-        let hourly_cost = 0.192;
-        let db_engine = server.database_engine.clone().unwrap_or_else(|| "PostgreSQL 16 NVMe".to_string());
+        let (ram_total, ram_used_base, disk_total, disk_used_base, hourly_cost, cores, default_engine) = match server.database_engine.as_deref() {
+            Some(e) if e.contains("Redis") => (4.0, 1.2, 30.0, 4.5, 0.025, 2, "AWS ElastiCache Redis 7.2"),
+            Some(e) if e.contains("Loki") || e.contains("OpenSearch") => (16.0, 7.8, 500.0, 145.0, 0.192, 4, "Grafana Loki Storage"),
+            _ => (16.0, 8.4, 250.0, 72.0, 0.150, 4, "AWS RDS PostgreSQL 16"),
+        };
+        let ram_used = ram_used_base + ((hash % 4) as f64 * 0.3) + ((now % 10) as f64 * 0.05);
+        let disk_used = disk_used_base + ((hash % 20) as f64);
+        let db_engine = server.database_engine.clone().unwrap_or_else(|| default_engine.to_string());
 
         let (idle_hours, active_hours) = if server.status == "idle" {
             let current_idle = server.idle_minutes as f64 / 60.0;
@@ -220,21 +222,26 @@ pub fn fetch_live_telemetry(server: &Server) -> ResourceTelemetry {
             burden: Some(burden),
         }
     } else {
-        let (ram_total, disk_total, hourly_cost, inst_name) = match server.provider.as_str() {
-            "azure" => (16.0, 256.0, 0.192, "Azure Standard_D4s_v5"),
-            "gcp" => (16.0, 200.0, 0.138, "GCP n2-standard-4"),
-            _ => (16.0, 250.0, 0.096, "AWS EC2 c5.large"),
+        let (ram_total, ram_used_base, disk_total, disk_used_base, hourly_cost, cores, inst_name) = match server.role.as_deref() {
+            Some("frontend") => (4.0, 1.8, 50.0, 14.5, 0.0336, 2, "AWS EC2 t4g.medium (2 vCPU, 4GB RAM)"),
+            Some("backend") => (8.0, 4.2, 100.0, 32.0, 0.0850, 2, "AWS EC2 c6i.large (2 vCPU, 8GB RAM)"),
+            Some("scraper") | Some("curator") => (16.0, 8.5, 100.0, 38.0, 0.1340, 4, "GCP e2-standard-4 (4 vCPU, 16GB RAM)"),
+            _ => match server.provider.as_str() {
+                "azure" => (16.0, 6.2, 256.0, 45.0, 0.1920, 4, "Azure Standard_D4s_v5 (4 vCPU, 16GB RAM)"),
+                "gcp" => (16.0, 7.1, 200.0, 40.0, 0.1380, 4, "GCP n2-standard-4 (4 vCPU, 16GB RAM)"),
+                _ => (8.0, 3.8, 80.0, 24.0, 0.0640, 2, "AWS EC2 t3.medium (2 vCPU, 4GB RAM)"),
+            },
         };
         let ram_used = if server.status == "idle" {
-            2.4 + ((hash % 4) as f64 * 0.3)
+            (ram_total * 0.22) + ((hash % 3) as f64 * 0.1)
         } else {
-            7.8 + ((hash % 6) as f64 * 0.8) + ((now % 10) as f64 * 0.1)
+            ram_used_base + ((hash % 5) as f64 * 0.3) + ((now % 10) as f64 * 0.05)
         };
-        let disk_used = 65.0 + ((hash % 35) as f64);
+        let disk_used = disk_used_base + ((hash % 15) as f64);
         let cpu_usage = if server.status == "idle" {
-            1.5
+            1.5 + ((hash % 2) as f64 * 0.5)
         } else {
-            48.0 + ((hash % 25) as f64)
+            28.0 + ((hash % 25) as f64)
         };
 
         let (idle_hours, active_hours) = if server.status == "idle" {
@@ -296,7 +303,7 @@ pub fn fetch_live_telemetry(server: &Server) -> ResourceTelemetry {
             storage_usage_percent: ((disk_used / disk_total) * 1000.0).round() / 10.0,
             hourly_cost,
             instance_type: inst_name.to_string(),
-            cpu_cores: 4,
+            cpu_cores: cores,
             cpu_usage_percent: (cpu_usage * 10.0).round() / 10.0,
             fetched_at: now,
             is_live: true,

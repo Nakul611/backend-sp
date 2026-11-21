@@ -8,7 +8,7 @@ use uuid::Uuid;
 
 use crate::{
     error::AppError,
-    handlers::servers::fetch_live_telemetry,
+    controllers::server_controller::fetch_live_telemetry,
     models::{
         CloudCatalogQuery, CloudCatalogService, CloudProviderConfig, ProvisionServersRequest,
         ProvisionServersResponse, Server, TestCloudProviderRequest, TestCloudProviderResponse,
