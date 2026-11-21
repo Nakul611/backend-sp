@@ -81,19 +81,19 @@ impl AppState {
             ),
         ];
 
-        // Seed Project 1: Mass-Scale Distributed Pipeline (50 servers)
+        // Seed Project 1: Distributed Worker Cluster (50 servers)
         let project_id_1 = "proj-crawler-alpha".to_string();
         let project_1 = Project {
             id: project_id_1.clone(),
-            name: "High-Throughput Parallel Web Crawler".to_string(),
+            name: "Distributed Ingestion & ETL Cluster".to_string(),
             slug: "parallel-crawler".to_string(),
-            description: "Distributed mass-scale pipeline: 50x nodes executing unified crawling, curation, and cleaning.".to_string(),
+            description: "Distributed worker cluster: 50x nodes executing sharded ingestion, processing & ETL, and sanitization & sink.".to_string(),
             status: "open".to_string(),
             project_type: Some("mass_pipeline".to_string()),
             services: Some(vec![
                 ProjectService {
                     id: "srv-crawler-scrape".to_string(),
-                    name: "Mass Web Scrapers".to_string(),
+                    name: "Ingestion Pool (Web Scrapers)".to_string(),
                     service_type: "scraper".to_string(),
                     git_url: Some("https://github.com/my-org/parallel-crawler.git".to_string()),
                     branch: Some("main".to_string()),
@@ -106,7 +106,7 @@ impl AppState {
                 },
                 ProjectService {
                     id: "srv-crawler-curate".to_string(),
-                    name: "Data Curation & Normalization".to_string(),
+                    name: "Processing & ETL (Data Normalization)".to_string(),
                     service_type: "curator".to_string(),
                     git_url: Some("https://github.com/my-org/parallel-crawler.git".to_string()),
                     branch: Some("main".to_string()),
@@ -119,7 +119,7 @@ impl AppState {
                 },
                 ProjectService {
                     id: "srv-crawler-clean".to_string(),
-                    name: "Mass Cleaning & Deduplication".to_string(),
+                    name: "Sanitization & Sink (Deduplication)".to_string(),
                     service_type: "cleaner".to_string(),
                     git_url: Some("https://github.com/my-org/parallel-crawler.git".to_string()),
                     branch: Some("main".to_string()),
@@ -132,7 +132,7 @@ impl AppState {
                 },
             ]),
             domain_guidance: Some(
-                "StackPlane provides raw compute instances and root SSM access. DNS domains are self-managed: point your DNS A-record to the worker public IP and configure reverse proxies via Terminal.".to_string(),
+                "StackPlane provisions compute nodes with root SSM access. Ingress routing is self-managed: point DNS A-records directly to the node public IP addresses and manage TLS/reverse proxy via Terminal.".to_string(),
             ),
             repository: Some(ProjectRepository {
                 git_url: "https://github.com/my-org/parallel-crawler.git".to_string(),
@@ -152,19 +152,19 @@ impl AppState {
             updated_at: now,
         };
 
-        // Seed Project 2: Entire Full-Stack Application Stack (20 servers)
+        // Seed Project 2: Composite Multi-Service Stack (20 servers)
         let project_id_2 = "proj-ai-inference".to_string();
         let project_2 = Project {
             id: project_id_2.clone(),
-            name: "SaaS Enterprise Full-Stack Application".to_string(),
-            slug: "saas-fullstack-app".to_string(),
-            description: "Entire application stack: Next.js Frontend, Rust Axum Core API, PostgreSQL 16 DB, and Redis 7 Cache on dedicated nodes.".to_string(),
+            name: "SaaS Enterprise Composite Multi-Service Stack".to_string(),
+            slug: "saas-composite-stack".to_string(),
+            description: "Composite application stack: Decoupled Web Ingress, Core Application API, PostgreSQL 16 Datastore, and Redis 7 Cache on dedicated compute nodes.".to_string(),
             status: "open".to_string(),
             project_type: Some("fullstack".to_string()),
             services: Some(vec![
                 ProjectService {
                     id: "srv-saas-web".to_string(),
-                    name: "Frontend Web Application".to_string(),
+                    name: "Web Ingress (Frontend)".to_string(),
                     service_type: "frontend".to_string(),
                     git_url: Some("https://github.com/my-org/saas-frontend.git".to_string()),
                     branch: Some("main".to_string()),
@@ -177,7 +177,7 @@ impl AppState {
                 },
                 ProjectService {
                     id: "srv-saas-api".to_string(),
-                    name: "Core API & Microservices".to_string(),
+                    name: "Core Application API & Microservices".to_string(),
                     service_type: "backend".to_string(),
                     git_url: Some("https://github.com/my-org/saas-backend.git".to_string()),
                     branch: Some("main".to_string()),
@@ -190,7 +190,7 @@ impl AppState {
                 },
                 ProjectService {
                     id: "srv-saas-db".to_string(),
-                    name: "Primary Database (PostgreSQL 16)".to_string(),
+                    name: "Primary Datastore (PostgreSQL 16)".to_string(),
                     service_type: "database".to_string(),
                     git_url: None,
                     branch: None,
@@ -203,7 +203,7 @@ impl AppState {
                 },
                 ProjectService {
                     id: "srv-saas-cache".to_string(),
-                    name: "In-Memory Cache & Queues (Redis 7)".to_string(),
+                    name: "Distributed In-Memory Cache (Redis 7.2)".to_string(),
                     service_type: "database".to_string(),
                     git_url: None,
                     branch: None,
@@ -216,7 +216,7 @@ impl AppState {
                 },
             ]),
             domain_guidance: Some(
-                "StackPlane provisions and hosts servers and databases. Point your domain (e.g. app.mycompany.com) to your Frontend IP (port 3000) and configure Caddy/Nginx reverse proxy via Terminal.".to_string(),
+                "StackPlane provisions compute nodes and dedicated datastores. Ingress routing is self-managed: point your DNS A/CNAME record to your Web Ingress node and configure TLS/reverse proxy via Terminal.".to_string(),
             ),
             repository: Some(ProjectRepository {
                 git_url: "https://github.com/my-org/vision-batch.git".to_string(),
