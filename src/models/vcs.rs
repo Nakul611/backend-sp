@@ -39,3 +39,27 @@ pub struct TestVcsProviderResponse {
     pub is_sandbox: bool,
     pub message: String,
 }
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct GitWebhookPayload {
+    pub repository_url: Option<String>,
+    pub git_url: Option<String>,
+    pub branch: Option<String>,
+    pub r#ref: Option<String>,
+    pub commit_sha: Option<String>,
+    pub commit_message: Option<String>,
+    pub author_name: Option<String>,
+    pub sender: Option<String>,
+}
+
+#[derive(Debug, Serialize, Clone)]
+pub struct GitWebhookResponse {
+    pub success: bool,
+    pub matched_project_id: Option<String>,
+    pub matched_project_name: Option<String>,
+    pub target_branch: String,
+    pub commit_sha: String,
+    pub servers_dispatched: usize,
+    pub execution_command: String,
+    pub message: String,
+}

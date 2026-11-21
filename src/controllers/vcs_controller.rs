@@ -6,7 +6,10 @@ use chrono::Utc;
 
 use crate::{
     error::AppError,
-    models::{TestVcsProviderRequest, TestVcsProviderResponse, UpdateVcsProviderRequest, VcsProviderConfig},
+    models::{
+        GitWebhookPayload, GitWebhookResponse, TestVcsProviderRequest, TestVcsProviderResponse,
+        UpdateVcsProviderRequest, VcsProviderConfig,
+    },
     state::AppState,
 };
 
@@ -110,5 +113,147 @@ pub async fn test_vcs_provider(
         latency_ms,
         is_sandbox: provider.is_sandbox,
         message: msg,
+    }))
+}
+
+pub async fn handle_git_webhook(
+    State(state): State<AppState>,
+    axum::extract::Path(provider): axum::extract::Path<String>,
+    Json(payload): Json<GitWebhookPayload>,
+) -> Result<Json<GitWebhookResponse>, AppError> {
+    let now = Utc::now().timestamp();
+
+    // Determine target repository URL
+    let repo_url = payload
+        .git_url
+        .as_deref()
+        .or(payload.repository_url.as_deref())
+        .unwrap_or("https://github.com/my-org/saas-frontend.git")
+        .trim();
+
+    // Determine target branch
+    let branch = payload
+        .branch
+        .as_deref()
+        .or_else(|| {
+            payload.r#ref.as_deref().map(|r| {
+                r.strip_prefix("refs/heads/").unwrap_or(r)
+            })
+        })
+        .unwrap_or("main")
+        .trim();
+
+    let commit_sha = payload
+        .commit_sha
+        .clone()
+        .unwrap_or_else(|| "e933b7f".to_string());
+
+    let commit_msg = payload
+        .commit_message
+        .clone()
+        .unwrap_or_else(|| "Automated code update via git push".to_string());
+
+    let author = payload
+        .author_name
+        .clone()
+        .or(payload.sender.clone())
+        .unwrap_or_else(|| "devops-engineer".to_string());
+
+    // Clean comparison: normalize repo URLs (lowercase, remove .git suffix, remove trailing slashes)
+    let clean_url = |u: &str| -> String {
+        u.to_lowercase()
+            .trim_end_matches('/')
+            .trim_end_matches(".git")
+            .to_string()
+    };
+
+    let target_clean = clean_url(repo_url);
+
+    // Find matching project
+    let projects = state.projects.read().await;
+    let matched_project = projects.iter().find(|p| {
+        if let Some(ref repo) = p.repository {
+            if clean_url(&repo.git_url) == target_clean {
+                return true;
+            }
+        }
+        if let Some(ref services) = p.services {
+            for svc in services {
+                if let Some(ref s_url) = svc.git_url {
+                    if clean_url(s_url) == target_clean {
+                        return true;
+                    }
+                }
+            }
+        }
+        false
+    }).cloned();
+
+    let matched_project = matched_project.or_else(|| projects.first().cloned());
+
+    let (project_id, project_name, run_cmd) = match &matched_project {
+        Some(p) => (
+            p.id.clone(),
+            p.name.clone(),
+            p.repository
+                .as_ref()
+                .map(|r| r.run_command.clone())
+                .unwrap_or_else(|| "git pull && npm run build && systemctl restart app".to_string()),
+        ),
+        None => (
+            "proj-fallback".to_string(),
+            "Default Pipeline".to_string(),
+            "git pull && npm run build".to_string(),
+        ),
+    };
+
+    drop(projects);
+
+    // Target servers associated with this project
+    let mut servers = state.servers.write().await;
+    let mut dispatched_count = 0;
+    for s in servers.iter_mut() {
+        if s.project_id == project_id {
+            s.status = "executing".to_string();
+            s.last_job_started_at = Some(now);
+            s.idle_since = None;
+            s.idle_minutes = 0;
+            dispatched_count += 1;
+        }
+    }
+    drop(servers);
+
+    // Broadcast WebSocket events to notify all active UI clients
+    state.broadcast_event(&crate::models::WsEvent {
+        r#type: "PIPELINE_RUNNING".to_string(),
+        project_id: Some(project_id.clone()),
+        server_id: None,
+        status: Some("executing".to_string()),
+        idle_minutes: Some(0),
+        message: Some(format!(
+            "[{}] Auto-Pipeline Triggered by {} push to {} (commit {}): '{}'. Deploying across {} nodes.",
+            provider.to_uppercase(),
+            author,
+            branch,
+            &commit_sha[..7.min(commit_sha.len())],
+            commit_msg,
+            dispatched_count
+        )),
+        telemetry: None,
+    });
+
+    Ok(Json(GitWebhookResponse {
+        success: true,
+        matched_project_id: Some(project_id),
+        matched_project_name: Some(project_name),
+        target_branch: branch.to_string(),
+        commit_sha,
+        servers_dispatched: dispatched_count,
+        execution_command: run_cmd,
+        message: format!(
+            "Successfully processed {} webhook. Continuous delivery pipeline automatically triggered across {} fleet nodes.",
+            provider.to_uppercase(),
+            dispatched_count
+        ),
     }))
 }
