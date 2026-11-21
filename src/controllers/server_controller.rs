@@ -681,9 +681,9 @@ pub async fn terminal_exec_server(
                      reverse_proxy localhost:{}\n\
                      tls admin@mycompany.com\n\
                  }}\n\
-                 ✓ Validated: Auto-HTTPS enabled via Let's Encrypt / ZeroSSL\n\
-                 ✓ Active Proxy Routes: 1\n\
-                 ✓ Status: Running (PID 1420)",
+                 [OK] Validated: Auto-HTTPS enabled via Let's Encrypt / ZeroSSL\n\
+                 [OK] Active Proxy Routes: 1\n\
+                 [OK] Status: Running (PID 1420)",
                 server.host_ip, port
             )
         }

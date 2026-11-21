@@ -7,7 +7,7 @@ use crate::state::AppState;
 
 pub fn start_telemetry_ticker(state: AppState) {
     tokio::spawn(async move {
-        tracing::info!("⚡ Real-Time Telemetry & Financial Burden Ticker started (3s resolution)");
+        tracing::info!("Real-Time Telemetry & Financial Burden Ticker started (3s resolution)");
 
         let mut tick_counter: u64 = 0;
 

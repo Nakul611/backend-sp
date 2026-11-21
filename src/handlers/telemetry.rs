@@ -221,7 +221,7 @@ SERVER_ID="{server_name}"
 API_URL="http://127.0.0.1:8000"
 
 echo "======================================================================="
-echo "🚀 StackPlane Zero-Touch Agent Bootstrapping..."
+echo "StackPlane Zero-Touch Agent Bootstrapping..."
 echo "Target Project: $PROJECT_ID"
 echo "Target Node:    $SERVER_ID"
 echo "======================================================================="
@@ -235,10 +235,10 @@ if ! command -v curl &> /dev/null; then
     fi
 fi
 
-echo "✓ System dependencies verified (curl, coreutils)"
+echo "[OK] System dependencies verified (curl, coreutils)"
 
 # 2. Start Real-Time Heartbeat Loop
-echo "📡 Starting real-time telemetry streaming to $API_URL..."
+echo "Starting real-time telemetry streaming to $API_URL..."
 
 while true; do
     # Sample CPU jiffies
@@ -362,7 +362,7 @@ SERVER_ID="${{HOSTNAME:-stackplane-node-01}}"
 API_URL="http://127.0.0.1:8000"
 
 echo "======================================================================="
-echo "⚡ Starting Zero-Touch Fleet Provisioning..."
+echo "Starting Zero-Touch Fleet Provisioning..."
 echo "Project: $PROJECT_ID | Target Branch: $BRANCH"
 echo "======================================================================="
 
@@ -415,7 +415,7 @@ curl -s -X POST "$API_URL/api/telemetry/heartbeat" \
         \"active_job\": \"worker_pid_$WORKER_PID\"
     }}" > /dev/null
 
-echo "✅ Node successfully provisioned and actively reporting to StackPlane!"
+echo "[OK] Node successfully provisioned and actively reporting to StackPlane!"
 "#,
         project_name = project.name,
         project_id = project.id,
