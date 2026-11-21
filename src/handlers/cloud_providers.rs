@@ -477,6 +477,11 @@ pub async fn provision_servers(
                 idle_minutes: 0,
                 last_error: None,
                 created_at: now,
+                service_id: None,
+                role: Some("compute".to_string()),
+                service_name: None,
+                database_engine: None,
+                port: None,
                 telemetry: None,
             };
 

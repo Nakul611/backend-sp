@@ -291,6 +291,11 @@ pub async fn add_server(
         idle_minutes: 0,
         last_error: None,
         created_at: now,
+        service_id: payload.service_id,
+        role: payload.role.or_else(|| Some("compute".to_string())),
+        service_name: payload.service_name,
+        database_engine: payload.database_engine,
+        port: payload.port,
         telemetry: None,
     };
 
@@ -348,6 +353,11 @@ pub async fn batch_import_servers(
             idle_minutes: 0,
             last_error: None,
             created_at: now,
+            service_id: req.service_id,
+            role: req.role.or_else(|| Some("compute".to_string())),
+            service_name: req.service_name,
+            database_engine: req.database_engine,
+            port: req.port,
             telemetry: None,
         };
 

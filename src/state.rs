@@ -3,7 +3,7 @@ use tokio::sync::{broadcast, RwLock};
 use chrono::Utc;
 
 use crate::auth::AuthUser;
-use crate::models::{CloudProviderConfig, Credential, FleetNotification, Project, ProjectRepository, Server, VcsProviderConfig, WsEvent};
+use crate::models::{CloudProviderConfig, Credential, FleetNotification, Project, ProjectRepository, ProjectService, Server, VcsProviderConfig, WsEvent};
 
 #[derive(Clone)]
 pub struct AppState {
@@ -80,14 +80,59 @@ impl AppState {
             ),
         ];
 
-        // Seed Project 1: Crawler Fleet (50 servers)
+        // Seed Project 1: Mass-Scale Distributed Pipeline (50 servers)
         let project_id_1 = "proj-crawler-alpha".to_string();
         let project_1 = Project {
             id: project_id_1.clone(),
             name: "High-Throughput Parallel Web Crawler".to_string(),
             slug: "parallel-crawler".to_string(),
-            description: "50x AWS EC2 c5.large & Azure VM compute nodes running distributed batch jobs.".to_string(),
+            description: "Distributed mass-scale pipeline: 50x nodes executing unified crawling, curation, and cleaning.".to_string(),
             status: "open".to_string(),
+            project_type: Some("mass_pipeline".to_string()),
+            services: Some(vec![
+                ProjectService {
+                    id: "srv-crawler-scrape".to_string(),
+                    name: "Mass Web Scrapers".to_string(),
+                    service_type: "scraper".to_string(),
+                    git_url: Some("https://github.com/my-org/parallel-crawler.git".to_string()),
+                    branch: Some("main".to_string()),
+                    root_directory: Some("workers/crawler".to_string()),
+                    build_command: Some("cargo build --release".to_string()),
+                    run_command: Some("./run_worker.sh --batch-size 500".to_string()),
+                    port: None,
+                    database_engine: None,
+                    node_count: 30,
+                },
+                ProjectService {
+                    id: "srv-crawler-curate".to_string(),
+                    name: "Data Curation & Normalization".to_string(),
+                    service_type: "curator".to_string(),
+                    git_url: Some("https://github.com/my-org/parallel-crawler.git".to_string()),
+                    branch: Some("main".to_string()),
+                    root_directory: Some("workers/curator".to_string()),
+                    build_command: Some("pip install -r requirements.txt".to_string()),
+                    run_command: Some("python curate_dataset.py".to_string()),
+                    port: None,
+                    database_engine: None,
+                    node_count: 10,
+                },
+                ProjectService {
+                    id: "srv-crawler-clean".to_string(),
+                    name: "Mass Cleaning & Deduplication".to_string(),
+                    service_type: "cleaner".to_string(),
+                    git_url: Some("https://github.com/my-org/parallel-crawler.git".to_string()),
+                    branch: Some("main".to_string()),
+                    root_directory: Some("workers/cleaner".to_string()),
+                    build_command: Some("cargo build --release".to_string()),
+                    run_command: Some("./clean_dedup_shards.sh".to_string()),
+                    port: None,
+                    database_engine: None,
+                    node_count: 10,
+                },
+            ]),
+            domain_guidance: Some(
+                "StackPlane provides raw compute instances and root SSM access. DNS domains are self-managed: point your DNS A-record to the worker public IP and configure reverse proxies via Terminal.".to_string(),
+            ),
             repository: Some(ProjectRepository {
                 git_url: "https://github.com/my-org/parallel-crawler.git".to_string(),
                 branch: "main".to_string(),
@@ -106,14 +151,72 @@ impl AppState {
             updated_at: now,
         };
 
-        // Seed Project 2: AI Inference Fleet (20 servers)
+        // Seed Project 2: Entire Full-Stack Application Stack (20 servers)
         let project_id_2 = "proj-ai-inference".to_string();
         let project_2 = Project {
             id: project_id_2.clone(),
-            name: "Distributed LLM & Vision Inference Fleet".to_string(),
-            slug: "ai-inference-fleet".to_string(),
-            description: "20x GPU instances (AWS g4dn.xlarge & GCP T4) handling asynchronous model inference batches.".to_string(),
+            name: "SaaS Enterprise Full-Stack Application".to_string(),
+            slug: "saas-fullstack-app".to_string(),
+            description: "Entire application stack: Next.js Frontend, Rust Axum Core API, PostgreSQL 16 DB, and Redis 7 Cache on dedicated nodes.".to_string(),
             status: "open".to_string(),
+            project_type: Some("fullstack".to_string()),
+            services: Some(vec![
+                ProjectService {
+                    id: "srv-saas-web".to_string(),
+                    name: "Frontend Web Application".to_string(),
+                    service_type: "frontend".to_string(),
+                    git_url: Some("https://github.com/my-org/saas-frontend.git".to_string()),
+                    branch: Some("main".to_string()),
+                    root_directory: Some("frontend".to_string()),
+                    build_command: Some("npm run build".to_string()),
+                    run_command: Some("npm start".to_string()),
+                    port: Some(3000),
+                    database_engine: None,
+                    node_count: 4,
+                },
+                ProjectService {
+                    id: "srv-saas-api".to_string(),
+                    name: "Core API & Microservices".to_string(),
+                    service_type: "backend".to_string(),
+                    git_url: Some("https://github.com/my-org/saas-backend.git".to_string()),
+                    branch: Some("main".to_string()),
+                    root_directory: Some("backend".to_string()),
+                    build_command: Some("cargo build --release".to_string()),
+                    run_command: Some("./target/release/server".to_string()),
+                    port: Some(8000),
+                    database_engine: None,
+                    node_count: 8,
+                },
+                ProjectService {
+                    id: "srv-saas-db".to_string(),
+                    name: "Primary Database (PostgreSQL 16)".to_string(),
+                    service_type: "database".to_string(),
+                    git_url: None,
+                    branch: None,
+                    root_directory: None,
+                    build_command: None,
+                    run_command: Some("postgres -c config_file=/etc/postgresql/postgresql.conf".to_string()),
+                    port: Some(5432),
+                    database_engine: Some("PostgreSQL 16".to_string()),
+                    node_count: 4,
+                },
+                ProjectService {
+                    id: "srv-saas-cache".to_string(),
+                    name: "In-Memory Cache & Queues (Redis 7)".to_string(),
+                    service_type: "database".to_string(),
+                    git_url: None,
+                    branch: None,
+                    root_directory: None,
+                    build_command: None,
+                    run_command: Some("redis-server /etc/redis/redis.conf".to_string()),
+                    port: Some(6379),
+                    database_engine: Some("Redis 7.2".to_string()),
+                    node_count: 4,
+                },
+            ]),
+            domain_guidance: Some(
+                "StackPlane provisions and hosts servers and databases. Point your domain (e.g. app.mycompany.com) to your Frontend IP (port 3000) and configure Caddy/Nginx reverse proxy via Terminal.".to_string(),
+            ),
             repository: Some(ProjectRepository {
                 git_url: "https://github.com/my-org/vision-batch.git".to_string(),
                 branch: "production".to_string(),
@@ -140,6 +243,9 @@ impl AppState {
             slug: "financial-streaming".to_string(),
             description: "15x AWS c5.2xlarge Kafka & Flink distributed streaming workers processing live tick feeds.".to_string(),
             status: "open".to_string(),
+            project_type: None,
+            services: None,
+            domain_guidance: None,
             repository: Some(ProjectRepository {
                 git_url: "https://github.com/my-org/fin-stream.git".to_string(),
                 branch: "main".to_string(),
@@ -166,6 +272,9 @@ impl AppState {
             slug: "k8s-edge-ingress".to_string(),
             description: "12x Azure D4s_v5 nodes routing edge global ingress, Envoy proxying, and SSL termination.".to_string(),
             status: "open".to_string(),
+            project_type: None,
+            services: None,
+            domain_guidance: None,
             repository: Some(ProjectRepository {
                 git_url: "https://github.com/my-org/k8s-edge.git".to_string(),
                 branch: "main".to_string(),
@@ -192,6 +301,9 @@ impl AppState {
             slug: "search-analytics".to_string(),
             description: "16x AWS r5.large nodes running distributed Lucene search indexers and clickstream aggregation.".to_string(),
             status: "open".to_string(),
+            project_type: None,
+            services: None,
+            domain_guidance: None,
             repository: Some(ProjectRepository {
                 git_url: "https://github.com/my-org/search-cluster.git".to_string(),
                 branch: "production".to_string(),
@@ -218,6 +330,9 @@ impl AppState {
             slug: "genai-render-farm".to_string(),
             description: "10x GCP L4/A100 GPU compute nodes for offline video diffusion. (Batch completed / Archived).".to_string(),
             status: "closed".to_string(),
+            project_type: None,
+            services: None,
+            domain_guidance: None,
             repository: Some(ProjectRepository {
                 git_url: "https://github.com/my-org/video-diffusion.git".to_string(),
                 branch: "main".to_string(),
@@ -244,6 +359,9 @@ impl AppState {
             slug: "log-archive-lake".to_string(),
             description: "8x GCP e2-standard-4 batch ingestion and GCS sync daemons. (Task Complete / Closed).".to_string(),
             status: "closed".to_string(),
+            project_type: None,
+            services: None,
+            domain_guidance: None,
             repository: Some(ProjectRepository {
                 git_url: "https://github.com/my-org/log-sink.git".to_string(),
                 branch: "master".to_string(),
@@ -297,6 +415,18 @@ impl AppState {
             let name = format!("{}-worker-{:02}", provider, i);
             let host_ip = format!("{}{}.{}", ip_prefix, (i * 3) % 250, (i * 7) % 250);
 
+            let (role, service_name, service_id) = if i <= 30 {
+                ("scraper", "Mass Web Scrapers", "srv-crawler-scrape")
+            } else if i <= 40 {
+                ("curator", "Data Curation & Normalization", "srv-crawler-curate")
+            } else {
+                ("cleaner", "Mass Cleaning & Deduplication", "srv-crawler-clean")
+            };
+
+            let mut tags = vec!["parallel-compute".to_string(), role.to_string(), format!("batch-{}", (i % 5) + 1)];
+            if role == "scraper" { tags.push("mass-crawling".to_string()); }
+            if role == "cleaner" { tags.push("mass-cleaning".to_string()); tags.push("dedup".to_string()); }
+
             initial_servers.push(Server {
                 id: format!("srv-{}", i),
                 project_id: project_id_1.clone(),
@@ -304,11 +434,16 @@ impl AppState {
                 name,
                 provider: provider.to_string(),
                 resource_type: resource_type.to_string(),
+                service_id: Some(service_id.to_string()),
+                role: Some(role.to_string()),
+                service_name: Some(service_name.to_string()),
+                database_engine: None,
+                port: None,
                 host_ip,
                 ssh_port: 22,
                 ssh_user: "ubuntu".to_string(),
                 region: region.to_string(),
-                tags: vec!["parallel-compute".to_string(), format!("batch-{}", (i % 5) + 1)],
+                tags,
                 status: if is_idle { "idle".to_string() } else { "active".to_string() },
                 active_since: now - (3600 * (i % 12 + 1)),
                 last_job_started_at: Some(now - 7200),
@@ -321,22 +456,41 @@ impl AppState {
             });
         }
 
-        // Seed initial servers for Project 2 (20 GPU servers)
+        // Seed initial servers for Project 2 (20 Full-Stack Servers including DBs)
         for j in 1..=20i64 {
             let is_idle = j > 16;
             let idle_mins: i64 = if is_idle { j * 3 } else { 0 };
+
+            let (role, s_name, s_id, res_type, db_engine, port, name_prefix) = if j <= 4 {
+                ("frontend", "Frontend Web Application", "srv-saas-web", "ec2", None, Some(3000), "saas-web")
+            } else if j <= 12 {
+                ("backend", "Core API & Microservices", "srv-saas-api", "ec2", None, Some(8000), "saas-api")
+            } else if j <= 16 {
+                ("database", "Primary Database (PostgreSQL 16)", "srv-saas-db", "database", Some("PostgreSQL 16"), Some(5432), "saas-postgres")
+            } else {
+                ("database", "In-Memory Cache & Queues (Redis 7)", "srv-saas-cache", "database", Some("Redis 7.2"), Some(6379), "saas-redis")
+            };
+
+            let mut tags = vec![role.to_string(), "saas-stack".to_string()];
+            if let Some(d) = db_engine { tags.push(d.to_lowercase().replace(' ', "-")); tags.push("storage".to_string()); }
+
             initial_servers.push(Server {
-                id: format!("srv-gpu-{}", j),
+                id: format!("srv-saas-{}", j),
                 project_id: project_id_2.clone(),
-                server_id: format!("i-gpu-{:04x}", j * 43),
-                name: format!("gpu-inference-{:02}", j),
+                server_id: format!("i-saas-{:04x}", j * 43),
+                name: format!("{}-{:02}", name_prefix, j),
                 provider: if j <= 14 { "aws".to_string() } else { "gcp".to_string() },
-                resource_type: "ec2".to_string(),
+                resource_type: res_type.to_string(),
+                service_id: Some(s_id.to_string()),
+                role: Some(role.to_string()),
+                service_name: Some(s_name.to_string()),
+                database_engine: db_engine.map(|d| d.to_string()),
+                port,
                 host_ip: format!("52.90.{}.{}", (j * 7) % 250, (j * 11) % 250),
                 ssh_port: 22,
                 ssh_user: "ubuntu".to_string(),
                 region: "us-east-1".to_string(),
-                tags: vec!["gpu-node".to_string(), "t4-tensor".to_string()],
+                tags,
                 status: if is_idle { "idle".to_string() } else { "active".to_string() },
                 active_since: now - (3600 * (j % 6 + 1)),
                 last_job_started_at: Some(now - 3600),
@@ -373,6 +527,11 @@ impl AppState {
                 idle_minutes: idle_mins,
                 last_error: None,
                 created_at: now - 3600 * 24 * 5,
+                service_id: None,
+                role: Some("worker".to_string()),
+                service_name: Some("Kafka / Flink Worker".to_string()),
+                database_engine: None,
+                port: None,
                 telemetry: None,
             });
         }
@@ -401,6 +560,11 @@ impl AppState {
                 idle_minutes: idle_mins,
                 last_error: None,
                 created_at: now - 3600 * 24 * 6,
+                service_id: None,
+                role: Some("frontend".to_string()),
+                service_name: Some("K8s Ingress Edge Envoy".to_string()),
+                database_engine: None,
+                port: Some(443),
                 telemetry: None,
             });
         }
@@ -429,6 +593,11 @@ impl AppState {
                 idle_minutes: idle_mins,
                 last_error: None,
                 created_at: now - 3600 * 24 * 4,
+                service_id: None,
+                role: Some("database".to_string()),
+                service_name: Some("OpenSearch Indexer".to_string()),
+                database_engine: Some("OpenSearch 2.11".to_string()),
+                port: Some(9200),
                 telemetry: None,
             });
         }
@@ -455,6 +624,11 @@ impl AppState {
                 idle_minutes: 2760,
                 last_error: None,
                 created_at: now - 3600 * 24 * 14,
+                service_id: None,
+                role: Some("worker".to_string()),
+                service_name: Some("GPU Video Diffusion".to_string()),
+                database_engine: None,
+                port: None,
                 telemetry: None,
             });
         }
@@ -481,6 +655,11 @@ impl AppState {
                 idle_minutes: 4200,
                 last_error: None,
                 created_at: now - 3600 * 24 * 20,
+                service_id: None,
+                role: Some("storage".to_string()),
+                service_name: Some("GCS Cold Archive Lake".to_string()),
+                database_engine: None,
+                port: None,
                 telemetry: None,
             });
         }

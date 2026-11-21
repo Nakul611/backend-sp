@@ -59,6 +59,16 @@ pub struct Server {
     pub last_error: Option<String>,
     pub created_at: i64,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub service_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub role: Option<String>, // "frontend", "backend", "database", "scraper", "curator", "cleaner", "storage"
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub service_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub database_engine: Option<String>, // "PostgreSQL 16", "Redis 7.2", "MongoDB 7.0", "MySQL 8.0"
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub port: Option<u16>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub telemetry: Option<ResourceTelemetry>,
 }
 
@@ -73,6 +83,11 @@ pub struct CreateServerRequest {
     pub ssh_user: Option<String>,
     pub region: String,
     pub tags: Option<Vec<String>>,
+    pub service_id: Option<String>,
+    pub role: Option<String>,
+    pub service_name: Option<String>,
+    pub database_engine: Option<String>,
+    pub port: Option<u16>,
 }
 
 #[derive(Debug, Deserialize, Clone)]

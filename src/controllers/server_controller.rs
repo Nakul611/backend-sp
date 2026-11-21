@@ -69,6 +69,79 @@ pub fn fetch_live_telemetry(server: &Server) -> ResourceTelemetry {
             is_live: true,
             burden: Some(burden),
         }
+    } else if server.role.as_deref() == Some("database") || server.resource_type == "database" {
+        let ram_total = 32.0;
+        let ram_used = 18.0 + ((hash % 8) as f64) + ((now % 10) as f64 * 0.1);
+        let disk_total = 1000.0;
+        let disk_used = 340.0 + ((hash % 120) as f64);
+        let hourly_cost = 0.192;
+        let db_engine = server.database_engine.clone().unwrap_or_else(|| "PostgreSQL 16 NVMe".to_string());
+
+        let (idle_hours, active_hours) = if server.status == "idle" {
+            let current_idle = server.idle_minutes as f64 / 60.0;
+            let hist = ((10.0 + (hash % 10) as f64) / 100.0) * lifetime_hours;
+            let idl = (current_idle + hist).min(lifetime_hours * 0.85);
+            let idl_rounded = (idl * 10.0).round() / 10.0;
+            (idl_rounded, ((lifetime_hours - idl_rounded).max(0.1) * 10.0).round() / 10.0)
+        } else {
+            let hist = ((5.0 + (hash % 5) as f64) / 100.0) * lifetime_hours;
+            let idl_rounded = (hist * 10.0).round() / 10.0;
+            (idl_rounded, ((lifetime_hours - idl_rounded).max(0.1) * 10.0).round() / 10.0)
+        };
+
+        let active_cost = ((active_hours * hourly_cost) * 100.0).round() / 100.0;
+        let idle_cost = ((idle_hours * hourly_cost) * 100.0).round() / 100.0;
+        let idle_waste_percent = if active_cost + idle_cost > 0.0 {
+            ((idle_cost / (active_cost + idle_cost)) * 1000.0).round() / 10.0
+        } else {
+            0.0
+        };
+
+        let data_uploaded_gb = (((hash % 40 + 10) as f64 + (lifetime_hours * 0.4)) * 10.0).round() / 10.0;
+        let upload_cost = ((data_uploaded_gb * 0.005) * 100.0).round() / 100.0;
+        let data_downloaded_gb = (((hash % 80 + 20) as f64 + (lifetime_hours * 1.1)) * 10.0).round() / 10.0;
+        let download_cost = ((data_downloaded_gb * 0.09) * 100.0).round() / 100.0;
+        let total_transfer_cost = ((upload_cost + download_cost) * 100.0).round() / 100.0;
+        let total_accumulated_burden = ((active_cost + idle_cost + total_transfer_cost) * 100.0).round() / 100.0;
+        let efficiency_score = if total_accumulated_burden > 0.0 {
+            ((active_cost / total_accumulated_burden) * 1000.0).round() / 10.0
+        } else {
+            99.0
+        };
+
+        let burden = FinancialBurden {
+            acquired_at,
+            lifetime_hours,
+            active_hours,
+            idle_hours,
+            active_cost,
+            idle_cost,
+            idle_waste_percent,
+            data_uploaded_gb,
+            data_downloaded_gb,
+            upload_cost,
+            download_cost,
+            storage_capacity_cost: 0.0,
+            total_transfer_cost,
+            total_accumulated_burden,
+            efficiency_score,
+        };
+
+        ResourceTelemetry {
+            ram_total_gb: ram_total,
+            ram_used_gb: (ram_used * 10.0).round() / 10.0,
+            ram_usage_percent: ((ram_used / ram_total) * 1000.0).round() / 10.0,
+            storage_total_gb: disk_total,
+            storage_used_gb: (disk_used * 10.0).round() / 10.0,
+            storage_usage_percent: ((disk_used / disk_total) * 1000.0).round() / 10.0,
+            hourly_cost,
+            instance_type: db_engine,
+            cpu_cores: 8,
+            cpu_usage_percent: (18.0 + (hash % 20) as f64 + (now % 10) as f64 * 0.3).round(),
+            fetched_at: now,
+            is_live: true,
+            burden: Some(burden),
+        }
     } else if server.tags.iter().any(|t| t.contains("gpu")) {
         let ram_total = 64.0;
         let ram_used = 24.0 + ((hash % 16) as f64) + ((now % 10) as f64 * 0.2);
@@ -291,6 +364,11 @@ pub async fn add_server(
         idle_minutes: 0,
         last_error: None,
         created_at: now,
+        service_id: payload.service_id,
+        role: payload.role.or_else(|| Some("compute".to_string())),
+        service_name: payload.service_name,
+        database_engine: payload.database_engine,
+        port: payload.port,
         telemetry: None,
     };
 
@@ -348,6 +426,11 @@ pub async fn batch_import_servers(
             idle_minutes: 0,
             last_error: None,
             created_at: now,
+            service_id: req.service_id,
+            role: req.role.or_else(|| Some("compute".to_string())),
+            service_name: req.service_name,
+            database_engine: req.database_engine,
+            port: req.port,
             telemetry: None,
         };
 
@@ -551,6 +634,80 @@ pub async fn terminal_exec_server(
         "pwd" => "/opt/stackplane/app".to_string(),
         "uname -a" => format!("Linux {} 6.8.0-45-generic #45-Ubuntu SMP PREEMPT_DYNAMIC x86_64 x86_64 x86_64 GNU/Linux", server.name),
         "uptime" => format!(" 16:45:00 up 8:15,  1 user,  load average: 0.42, 0.38, 0.25 (Host: {})", server.host_ip),
+        cmd if cmd.starts_with("psql") => {
+            let engine = server.database_engine.as_deref().unwrap_or("PostgreSQL 16.4");
+            format!(
+                "psql (16.4 (Ubuntu 16.4-1.pgdg22.04+1))\n\
+                 Type \"help\" for help.\n\
+                 \n\
+                 postgres=# \\l\n\
+                                             List of databases\n\
+                    Name    |  Owner   | Encoding |   Collate   |    Ctype    | Access privileges \n\
+                 -----------+----------+----------+-------------+-------------+-------------------\n\
+                  app_prod  | postgres | UTF8     | en_US.UTF-8 | en_US.UTF-8 | \n\
+                  postgres  | postgres | UTF8     | en_US.UTF-8 | en_US.UTF-8 | \n\
+                 (2 rows)\n\
+                 \n\
+                 postgres=# SELECT version();\n\
+                                                            version                                           \n\
+                 ---------------------------------------------------------------------------------------------\n\
+                  {engine} on x86_64-pc-linux-gnu, compiled by gcc (Ubuntu 11.4.0-1ubuntu1~22.04) 11.4.0, 64-bit\n\
+                 (1 row)"
+            )
+        }
+        cmd if cmd.starts_with("redis-cli") => {
+            format!(
+                "127.0.0.1:6379> PING\n\
+                 PONG\n\
+                 127.0.0.1:6379> INFO memory\n\
+                 # Memory\n\
+                 used_memory:432810240\n\
+                 used_memory_human:412.76M\n\
+                 used_memory_rss_human:435.12M\n\
+                 used_memory_peak_human:480.00M\n\
+                 mem_fragmentation_ratio:1.05\n\
+                 127.0.0.1:6379> CLIENT LIST | wc -l\n\
+                 32"
+            )
+        }
+        cmd if cmd.starts_with("caddy") || cmd.starts_with("cat /etc/caddy") => {
+            let port = server.port.unwrap_or(3000);
+            format!(
+                "[Caddy Reverse Proxy & Domain Engine v2.8.4]\n\
+                 # Self-Managed Domain Configuration\n\
+                 # DNS A-Record target: {}\n\
+                 app.mycompany.com {{\n\
+                     reverse_proxy localhost:{}\n\
+                     tls admin@mycompany.com\n\
+                 }}\n\
+                 ✓ Validated: Auto-HTTPS enabled via Let's Encrypt / ZeroSSL\n\
+                 ✓ Active Proxy Routes: 1\n\
+                 ✓ Status: Running (PID 1420)",
+                server.host_ip, port
+            )
+        }
+        cmd if cmd.starts_with("nginx") => {
+            let port = server.port.unwrap_or(8000);
+            format!(
+                "nginx: the configuration file /etc/nginx/nginx.conf syntax is ok\n\
+                 nginx: configuration file /etc/nginx/nginx.conf test is successful\n\
+                 Active reverse proxy: upstream backend -> 127.0.0.1:{}\n\
+                 SSL certificates verified: /etc/letsencrypt/live/app.example.com/fullchain.pem",
+                port
+            )
+        }
+        cmd if cmd.starts_with("certbot") => {
+            "Saving debug log to /var/log/letsencrypt/letsencrypt.log\n\
+             - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -\n\
+             Found the following certs:\n\
+               Certificate Name: app.example.com\n\
+                 Serial Number: 4a21008f102048f029a\n\
+                 Domains: app.example.com api.example.com\n\
+                 Expiry Date: 2027-02-19 12:00:00+00:00 (VALID: 89 days)\n\
+                 Certificate Path: /etc/letsencrypt/live/app.example.com/fullchain.pem\n\
+                 Private Key Path: /etc/letsencrypt/live/app.example.com/privkey.pem\n\
+             - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -".to_string()
+        }
         _ => {
             format!(
                 "[EXEC 0] Output from '{}':\n\
