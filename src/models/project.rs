@@ -40,6 +40,8 @@ pub struct Project {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub project_type: Option<String>, // "fullstack" or "mass_pipeline"
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub repo_strategy: Option<String>, // "monorepo" or "polyrepo"
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub services: Option<Vec<ProjectService>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub domain_guidance: Option<String>,
@@ -80,6 +82,7 @@ pub struct CreateProjectRequest {
     pub name: String,
     pub description: Option<String>,
     pub project_type: Option<String>, // "fullstack" or "mass_pipeline"
+    pub repo_strategy: Option<String>, // "monorepo" or "polyrepo"
     pub services: Option<Vec<CreateProjectServiceRequest>>,
     pub pipeline_stages: Option<Vec<String>>, // ["scraping", "curating", "cleaning"]
     pub git_url: Option<String>,

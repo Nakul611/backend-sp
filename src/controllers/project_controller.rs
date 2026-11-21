@@ -85,12 +85,41 @@ pub async fn create_project(
             for (idx, us) in user_services.into_iter().enumerate() {
                 let service_id = format!("srv-{}-{}", slug, idx + 1);
                 let node_count = us.node_count.unwrap_or(1).max(1);
+
+                let is_database = us.service_type == "database";
+
+                let service_git_url = if is_database {
+                    None
+                } else if let Some(ref g) = us.git_url {
+                    let trimmed = g.trim();
+                    if !trimmed.is_empty() {
+                        Some(trimmed.to_string())
+                    } else {
+                        payload.git_url.as_ref().map(|s| s.trim().to_string())
+                    }
+                } else {
+                    payload.git_url.as_ref().map(|s| s.trim().to_string())
+                };
+
+                let service_branch = if is_database {
+                    None
+                } else if let Some(ref b) = us.branch {
+                    let trimmed = b.trim();
+                    if !trimmed.is_empty() {
+                        Some(trimmed.to_string())
+                    } else {
+                        payload.branch.as_ref().map(|s| s.trim().to_string())
+                    }
+                } else {
+                    payload.branch.as_ref().map(|s| s.trim().to_string())
+                };
+
                 generated_services.push(ProjectService {
                     id: service_id.clone(),
                     name: us.name.clone(),
                     service_type: us.service_type.clone(),
-                    git_url: us.git_url.clone(),
-                    branch: us.branch.clone(),
+                    git_url: service_git_url.clone(),
+                    branch: service_branch.clone(),
                     root_directory: us.root_directory.clone(),
                     build_command: us.build_command.clone(),
                     run_command: us.run_command.clone(),
@@ -108,6 +137,10 @@ pub async fn create_project(
                     let mut tags = vec![us.service_type.clone(), "stackplane".to_string()];
                     if let Some(ref db) = us.database_engine {
                         tags.push(db.to_lowercase().replace(' ', "-"));
+                    }
+                    if let Some(ref gu) = service_git_url {
+                        let repo_slug = gu.trim_end_matches(".git").split('/').last().unwrap_or("repo");
+                        tags.push(format!("repo:{}", repo_slug));
                     }
                     generated_servers.push(Server {
                         id: format!("srv-{}", Uuid::new_v4().simple()),
@@ -259,14 +292,22 @@ pub async fn create_project(
         }
     }
 
-    let repo = payload.git_url.map(|url| ProjectRepository {
-        git_url: url,
-        branch: payload.branch.unwrap_or_else(|| "main".to_string()),
+    let repo = payload.git_url.as_ref().map(|url| ProjectRepository {
+        git_url: url.clone(),
+        branch: payload.branch.clone().unwrap_or_else(|| "main".to_string()),
         build_command: None,
-        run_command: payload.run_command.unwrap_or_else(|| "./run_job.sh".to_string()),
+        run_command: payload.run_command.clone().unwrap_or_else(|| "./run_job.sh".to_string()),
     });
 
     let srv_count = generated_servers.len() as i64;
+
+    let repo_strat = payload.repo_strategy.clone().unwrap_or_else(|| {
+        if generated_services.iter().any(|s| s.git_url.is_some() && s.git_url.as_deref() != payload.git_url.as_deref()) {
+            "polyrepo".to_string()
+        } else {
+            "monorepo".to_string()
+        }
+    });
 
     let new_project = Project {
         id: project_id,
@@ -275,6 +316,7 @@ pub async fn create_project(
         description: payload.description.unwrap_or_default(),
         status: "open".to_string(),
         project_type: Some(p_type),
+        repo_strategy: Some(repo_strat),
         services: Some(generated_services),
         domain_guidance: Some(
             "StackPlane provisions dedicated servers and databases with direct public IPs and root SSM access. We do not manage DNS domains or registrar subscriptions. To attach your custom domain, point your DNS A-record to the server IP and configure Nginx/Caddy SSL certificates directly via the built-in Terminal.".to_string(),

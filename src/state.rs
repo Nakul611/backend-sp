@@ -90,6 +90,7 @@ impl AppState {
             description: "Distributed worker cluster: 50x nodes executing sharded ingestion, processing & ETL, and sanitization & sink.".to_string(),
             status: "open".to_string(),
             project_type: Some("mass_pipeline".to_string()),
+            repo_strategy: Some("monorepo".to_string()),
             services: Some(vec![
                 ProjectService {
                     id: "srv-crawler-scrape".to_string(),
@@ -161,6 +162,7 @@ impl AppState {
             description: "Composite application stack: Decoupled Web Ingress, Core Application API, PostgreSQL 16 Datastore, and Redis 7 Cache on dedicated compute nodes.".to_string(),
             status: "open".to_string(),
             project_type: Some("fullstack".to_string()),
+            repo_strategy: Some("polyrepo".to_string()),
             services: Some(vec![
                 ProjectService {
                     id: "srv-saas-web".to_string(),
@@ -245,6 +247,7 @@ impl AppState {
             description: "15x AWS c5.2xlarge Kafka & Flink distributed streaming workers processing live tick feeds.".to_string(),
             status: "open".to_string(),
             project_type: None,
+            repo_strategy: None,
             services: None,
             domain_guidance: None,
             repository: Some(ProjectRepository {
@@ -274,6 +277,7 @@ impl AppState {
             description: "12x Azure D4s_v5 nodes routing edge global ingress, Envoy proxying, and SSL termination.".to_string(),
             status: "open".to_string(),
             project_type: None,
+            repo_strategy: None,
             services: None,
             domain_guidance: None,
             repository: Some(ProjectRepository {
@@ -303,6 +307,7 @@ impl AppState {
             description: "16x AWS r5.large nodes running distributed Lucene search indexers and clickstream aggregation.".to_string(),
             status: "open".to_string(),
             project_type: None,
+            repo_strategy: None,
             services: None,
             domain_guidance: None,
             repository: Some(ProjectRepository {
@@ -332,6 +337,7 @@ impl AppState {
             description: "10x GCP L4/A100 GPU compute nodes for offline video diffusion. (Batch completed / Archived).".to_string(),
             status: "closed".to_string(),
             project_type: None,
+            repo_strategy: None,
             services: None,
             domain_guidance: None,
             repository: Some(ProjectRepository {
@@ -361,6 +367,7 @@ impl AppState {
             description: "8x GCP e2-standard-4 batch ingestion and GCS sync daemons. (Task Complete / Closed).".to_string(),
             status: "closed".to_string(),
             project_type: None,
+            repo_strategy: None,
             services: None,
             domain_guidance: None,
             repository: Some(ProjectRepository {
