@@ -9,6 +9,8 @@ pub struct Credential {
     pub ssh_user: String,
     pub fingerprint: Option<String>,
     pub is_encrypted: bool,
+    #[serde(default, skip_serializing)]
+    pub encrypted_pem: Option<String>,
     pub created_at: i64,
 }
 

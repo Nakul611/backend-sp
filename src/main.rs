@@ -11,6 +11,7 @@ mod error;
 mod handlers;
 mod helpers;
 mod idle_watcher;
+mod middlewares;
 mod models;
 mod routes;
 mod services;

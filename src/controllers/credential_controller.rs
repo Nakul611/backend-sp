@@ -56,7 +56,7 @@ pub async fn create_credential(
 
     // Compute public key fingerprint and encrypt private key material for backend vault storage
     let fingerprint = crate::helpers::crypto::compute_key_fingerprint(&payload.pem_content);
-    let _encrypted_vault_entry = crate::helpers::crypto::encrypt_pem_vault(&payload.pem_content);
+    let encrypted_vault_entry = crate::helpers::crypto::encrypt_pem_vault(&payload.pem_content);
 
     let new_cred = Credential {
         id: cred_id,
@@ -66,6 +66,7 @@ pub async fn create_credential(
         ssh_user: payload.ssh_user,
         fingerprint: Some(fingerprint),
         is_encrypted: true,
+        encrypted_pem: Some(encrypted_vault_entry),
         created_at: now,
     };
 

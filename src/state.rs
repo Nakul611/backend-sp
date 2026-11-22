@@ -14,6 +14,7 @@ pub struct AppState {
     pub cloud_providers: Arc<RwLock<Vec<CloudProviderConfig>>>,
     pub vcs_providers: Arc<RwLock<Vec<VcsProviderConfig>>>,
     pub notifications: Arc<RwLock<Vec<FleetNotification>>>,
+    pub execution_runs: Arc<RwLock<Vec<crate::models::ExecutionRun>>>,
     pub ws_tx: broadcast::Sender<String>,
     pub mongo_client: Option<mongodb::Client>,
     pub live_pricing: Arc<crate::services::LivePricingService>,
@@ -413,6 +414,7 @@ impl AppState {
             ssh_user: "ubuntu".to_string(),
             fingerprint: Some("SHA256:4b:9a:12:cd:ef:88:99:aa".to_string()),
             is_encrypted: true,
+            encrypted_pem: Some("vault:aes256:v1:9f2c81a0b3e5d4c2".to_string()),
             created_at: now - 3600 * 48,
         };
 
@@ -1020,6 +1022,7 @@ impl AppState {
             cloud_providers: Arc::new(RwLock::new(initial_cloud_providers)),
             vcs_providers: Arc::new(RwLock::new(initial_vcs_providers)),
             notifications: Arc::new(RwLock::new(initial_notifications)),
+            execution_runs: Arc::new(RwLock::new(Vec::new())),
             ws_tx,
             mongo_client,
             live_pricing: Arc::new(crate::services::LivePricingService::new()),

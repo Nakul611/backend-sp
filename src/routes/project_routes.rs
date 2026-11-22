@@ -6,7 +6,7 @@ use axum::{
 use crate::{
     controllers::{
         cloud_controller::provision_servers,
-        execution_controller::dispatch_execution,
+        execution_controller::{dispatch_execution, list_project_executions},
         project_controller::{create_project, get_project, list_projects, update_project_status},
         server_controller::{
             add_server, batch_import_servers, list_servers, ping_all_servers,
@@ -27,4 +27,5 @@ pub fn project_routes() -> Router<AppState> {
         .route("/projects/{id}/servers/terminate-idle", post(terminate_idle_servers))
         .route("/projects/{id}/servers/ping-all", post(ping_all_servers))
         .route("/projects/{id}/execute", post(dispatch_execution))
+        .route("/projects/{id}/executions", get(list_project_executions))
 }

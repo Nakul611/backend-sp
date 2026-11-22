@@ -15,13 +15,23 @@ use crate::{
     state::AppState,
 };
 
-pub fn system_routes() -> Router<AppState> {
+pub fn public_system_routes() -> Router<AppState> {
     Router::new()
         .route("/health", get(health_check))
+        .route("/ws", get(ws_handler))
+}
+
+pub fn protected_system_routes() -> Router<AppState> {
+    Router::new()
         .route("/users", get(list_users).post(create_user))
         .route("/credentials", get(list_credentials).post(create_credential))
         .route("/notifications", get(list_notifications))
         .route("/notifications/{id}/read", patch(mark_notification_read))
         .route("/notifications/whatsapp-test", post(send_whatsapp_test))
-        .route("/ws", get(ws_handler))
+}
+
+pub fn system_routes() -> Router<AppState> {
+    Router::new()
+        .merge(public_system_routes())
+        .merge(protected_system_routes())
 }

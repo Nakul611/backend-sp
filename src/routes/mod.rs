@@ -12,7 +12,10 @@ use tower_http::{
     trace::TraceLayer,
 };
 
-use crate::state::AppState;
+use crate::{
+    middlewares::require_auth,
+    state::AppState,
+};
 
 pub fn create_router(state: AppState) -> Router {
     let cors = CorsLayer::new()
@@ -20,14 +23,27 @@ pub fn create_router(state: AppState) -> Router {
         .allow_methods(Any)
         .allow_headers(Any);
 
-    let api_routes = Router::new()
-        .nest("/auth", auth_routes::auth_routes())
+    // 1. Public Unauthenticated Routes
+    let public_routes = Router::new()
+        .nest("/auth", auth_routes::public_auth_routes())
+        .merge(system_routes::public_system_routes())
+        .merge(vcs_routes::public_vcs_routes())
+        .merge(telemetry_routes::telemetry_routes());
+
+    // 2. Protected Routes (Requiring valid JWT Authorization header)
+    let protected_routes = Router::new()
+        .nest("/auth", auth_routes::protected_auth_routes())
         .merge(cloud_routes::cloud_routes())
         .merge(project_routes::project_routes())
         .merge(server_routes::server_routes())
-        .merge(vcs_routes::vcs_routes())
-        .merge(telemetry_routes::telemetry_routes())
-        .merge(system_routes::system_routes());
+        .merge(vcs_routes::protected_vcs_routes())
+        .merge(system_routes::protected_system_routes())
+        .layer(axum::middleware::from_fn_with_state(state.clone(), require_auth));
+
+    // Combine both trees under `/api`
+    let api_routes = Router::new()
+        .merge(public_routes)
+        .merge(protected_routes);
 
     Router::new()
         .nest("/api", api_routes)

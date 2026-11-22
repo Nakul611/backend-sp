@@ -10,10 +10,20 @@ use crate::{
     state::AppState,
 };
 
-pub fn vcs_routes() -> Router<AppState> {
+pub fn public_vcs_routes() -> Router<AppState> {
+    Router::new()
+        .route("/vcs-providers/webhook/{provider}", post(handle_git_webhook))
+}
+
+pub fn protected_vcs_routes() -> Router<AppState> {
     Router::new()
         .route("/vcs-providers", get(list_vcs_providers))
         .route("/vcs-providers/{provider}", post(update_vcs_provider))
         .route("/vcs-providers/test", post(test_vcs_provider))
-        .route("/vcs-providers/webhook/{provider}", post(handle_git_webhook))
+}
+
+pub fn vcs_routes() -> Router<AppState> {
+    Router::new()
+        .merge(public_vcs_routes())
+        .merge(protected_vcs_routes())
 }

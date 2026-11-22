@@ -71,6 +71,8 @@ pub async fn create_credential(
         credential_type: "ssh_pem".to_string(),
         ssh_user: payload.ssh_user,
         fingerprint: Some(fingerprint),
+        is_encrypted: true,
+        encrypted_pem: Some(crate::helpers::crypto::encrypt_pem_vault(&payload.pem_content)),
         created_at: now,
     };
 

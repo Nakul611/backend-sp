@@ -242,6 +242,76 @@ pub async fn handle_git_webhook(
         telemetry: None,
     });
 
+    // Spawn async background worker to transition servers back to active upon pipeline completion
+    let bg_state = state.clone();
+    let bg_project_id = project_id.clone();
+    let bg_author = author.clone();
+    let bg_branch = branch.to_string();
+    let bg_commit_sha = commit_sha.clone();
+    let bg_cmd = run_cmd.clone();
+    let bg_count = dispatched_count;
+
+    tokio::spawn(async move {
+        tokio::time::sleep(std::time::Duration::from_secs(4)).await;
+        let finished_now = Utc::now().timestamp();
+
+        let mut updated_server_ids = Vec::new();
+        {
+            let mut servers = bg_state.servers.write().await;
+            for s in servers.iter_mut() {
+                if s.project_id == bg_project_id {
+                    s.status = "active".to_string();
+                    s.last_job_completed_at = Some(finished_now);
+                    updated_server_ids.push(s.id.clone());
+                }
+            }
+        }
+
+        // Store execution run
+        {
+            let mut runs = bg_state.execution_runs.write().await;
+            runs.push(crate::models::ExecutionRun {
+                id: format!("exec-webhook-{}", &bg_commit_sha[..7.min(bg_commit_sha.len())]),
+                project_id: bg_project_id.clone(),
+                triggered_by: format!("webhook:{}", bg_author),
+                command: bg_cmd.clone(),
+                status: "completed".to_string(),
+                total_servers: bg_count,
+                success_count: bg_count,
+                failed_count: 0,
+                started_at: finished_now - 4,
+                finished_at: Some(finished_now),
+            });
+        }
+
+        bg_state.broadcast_event(&crate::models::WsEvent {
+            r#type: "PIPELINE_COMPLETED".to_string(),
+            project_id: Some(bg_project_id.clone()),
+            server_id: None,
+            status: Some("active".to_string()),
+            idle_minutes: Some(0),
+            message: Some(format!(
+                "Zero-downtime deployment finished for branch '{}' (commit {}). All {} nodes updated and active.",
+                bg_branch,
+                &bg_commit_sha[..7.min(bg_commit_sha.len())],
+                bg_count
+            )),
+            telemetry: None,
+        });
+
+        for sid in updated_server_ids {
+            bg_state.broadcast_event(&crate::models::WsEvent {
+                r#type: "SERVER_STATUS_CHANGED".to_string(),
+                project_id: Some(bg_project_id.clone()),
+                server_id: Some(sid),
+                status: Some("active".to_string()),
+                idle_minutes: Some(0),
+                message: Some("Fleet node deployment completed. Status restored to active.".to_string()),
+                telemetry: None,
+            });
+        }
+    });
+
     Ok(Json(GitWebhookResponse {
         success: true,
         matched_project_id: Some(project_id),
