@@ -15,9 +15,19 @@ use crate::{
     state::AppState,
 };
 
-pub async fn list_projects(State(state): State<AppState>) -> Result<Json<Vec<Project>>, AppError> {
+pub async fn list_projects(
+    State(state): State<AppState>,
+    user_opt: Option<axum::extract::Extension<crate::auth::AuthUser>>,
+) -> Result<Json<Vec<Project>>, AppError> {
     let mut projects = state.projects.read().await.clone();
     let servers = state.servers.read().await;
+
+    // RBAC: If authenticated as member and not assigned to 'all', filter projects
+    if let Some(axum::extract::Extension(ref user)) = user_opt {
+        if user.role == "member" && !user.assigned_projects.contains(&"all".to_string()) {
+            projects.retain(|p| user.assigned_projects.contains(&p.id));
+        }
+    }
 
     // Recalculate server metrics per project
     for project in projects.iter_mut() {
@@ -35,8 +45,17 @@ pub async fn list_projects(State(state): State<AppState>) -> Result<Json<Vec<Pro
 
 pub async fn get_project(
     State(state): State<AppState>,
+    user_opt: Option<axum::extract::Extension<crate::auth::AuthUser>>,
     Path(id): Path<String>,
 ) -> Result<Json<Project>, AppError> {
+    if let Some(axum::extract::Extension(ref user)) = user_opt {
+        if user.role == "member" && !user.assigned_projects.contains(&"all".to_string()) && !user.assigned_projects.contains(&id) {
+            return Err(AppError::Forbidden(
+                "Access denied: You do not have permissions for this workspace.".to_string(),
+            ));
+        }
+    }
+
     let projects = state.projects.read().await.clone();
     let servers = state.servers.read().await;
 
@@ -342,6 +361,10 @@ pub async fn create_project(
 
     let mut projects = state.projects.write().await;
     projects.push(new_project.clone());
+    drop(projects);
+    drop(state_servers);
+
+    state.persist_snapshot().await;
 
     Ok((StatusCode::CREATED, Json(new_project)))
 }

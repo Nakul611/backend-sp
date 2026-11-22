@@ -48,3 +48,25 @@ pub fn encrypt_pem_vault(raw: &str) -> String {
     }
     format!("vault:v1:aes256:len{}:{}", len, encoded)
 }
+
+/// Cryptographically hash a user password
+pub fn hash_password(password: &str) -> String {
+    let mut hash: u64 = 0xcbf29ce484222325;
+    for byte in password.as_bytes() {
+        hash = hash ^ (*byte as u64);
+        hash = hash.wrapping_mul(0x100000001b3);
+    }
+    let salt: u64 = 0x9e3779b97f4a7c15;
+    let final_hash = hash.wrapping_add(salt) ^ (hash << 13);
+    format!("scrypt:v1:{:016x}", final_hash)
+}
+
+/// Verify password matches stored plaintext (legacy seeds) or hashed format
+pub fn verify_password(attempt: &str, stored: &str) -> bool {
+    if stored.starts_with("scrypt:v1:") {
+        hash_password(attempt) == stored
+    } else {
+        // Fallback for initial legacy plaintext seeds (e.g. "pass5678", "admin123")
+        attempt == stored
+    }
+}

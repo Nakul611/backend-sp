@@ -21,11 +21,11 @@ pub async fn login(
 
     let matched = users.iter().find(|(u, pass)| {
         (u.email.eq_ignore_ascii_case(&payload.email) || u.username.eq_ignore_ascii_case(&payload.email))
-            && pass == &payload.password
+            && crate::helpers::crypto::verify_password(&payload.password, pass)
     });
 
     let (user, _) = matched.ok_or_else(|| {
-        AppError::Unauthorized("Invalid username/email or password. Try user1234 / pass5678".to_string())
+        AppError::Unauthorized("Invalid username/email or password.".to_string())
     })?;
 
     let (access_token, refresh_token) = generate_tokens(user)?;

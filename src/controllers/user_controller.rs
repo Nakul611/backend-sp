@@ -1,5 +1,5 @@
 use axum::{
-    extract::State,
+    extract::{Path, State},
     http::StatusCode,
     Json,
 };
@@ -9,6 +9,7 @@ use uuid::Uuid;
 use crate::{
     auth::AuthUser,
     error::AppError,
+    helpers::crypto::hash_password,
     state::AppState,
 };
 
@@ -40,10 +41,12 @@ pub async fn create_user(
         u.email.eq_ignore_ascii_case(&payload.email)
             || u.username.eq_ignore_ascii_case(&payload.username)
     }) {
-        return Err(AppError::Internal(
+        return Err(AppError::BadRequest(
             "A user with this email or username already exists.".to_string(),
         ));
     }
+
+    let hashed_pw = hash_password(payload.password.trim());
 
     let new_user = AuthUser {
         id: format!("user-{}", Uuid::new_v4().simple()),
@@ -53,7 +56,30 @@ pub async fn create_user(
         assigned_projects: payload.assigned_projects.unwrap_or_else(|| vec!["all".to_string()]),
     };
 
-    users.push((new_user.clone(), payload.password));
+    users.push((new_user.clone(), hashed_pw));
 
     Ok((StatusCode::CREATED, Json(new_user)))
+}
+
+pub async fn delete_user(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> Result<StatusCode, AppError> {
+    let mut users = state.users.write().await;
+    let initial_len = users.len();
+
+    // Prevent deleting the primary admin account
+    if id == "user-admin-01" {
+        return Err(AppError::Forbidden(
+            "Primary administrator account cannot be deleted.".to_string(),
+        ));
+    }
+
+    users.retain(|(u, _)| u.id != id);
+
+    if users.len() == initial_len {
+        return Err(AppError::NotFound(format!("User '{}' not found", id)));
+    }
+
+    Ok(StatusCode::NO_CONTENT)
 }

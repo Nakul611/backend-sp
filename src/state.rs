@@ -1034,4 +1034,45 @@ impl AppState {
             let _ = self.ws_tx.send(json);
         }
     }
+
+    /// Asynchronous non-blocking write-through state persistence to MongoDB Atlas
+    pub async fn persist_snapshot(&self) {
+        if let Some(ref client) = self.mongo_client {
+            let db = client.database("stackplane");
+            let projects = self.projects.read().await.clone();
+            let servers = self.servers.read().await.clone();
+            let runs = self.execution_runs.read().await.clone();
+
+            tokio::spawn(async move {
+                let p_coll = db.collection::<bson::Document>("projects");
+                let s_coll = db.collection::<bson::Document>("servers");
+                let r_coll = db.collection::<bson::Document>("execution_runs");
+
+                for p in projects {
+                    if let Ok(doc) = bson::to_document(&p) {
+                        let filter = bson::doc! { "id": &p.id };
+                        let update = bson::doc! { "$set": doc };
+                        let opts = mongodb::options::UpdateOptions::builder().upsert(true).build();
+                        let _ = p_coll.update_one(filter, update).with_options(opts).await;
+                    }
+                }
+                for s in servers {
+                    if let Ok(doc) = bson::to_document(&s) {
+                        let filter = bson::doc! { "id": &s.id };
+                        let update = bson::doc! { "$set": doc };
+                        let opts = mongodb::options::UpdateOptions::builder().upsert(true).build();
+                        let _ = s_coll.update_one(filter, update).with_options(opts).await;
+                    }
+                }
+                for r in runs {
+                    if let Ok(doc) = bson::to_document(&r) {
+                        let filter = bson::doc! { "id": &r.id };
+                        let update = bson::doc! { "$set": doc };
+                        let opts = mongodb::options::UpdateOptions::builder().upsert(true).build();
+                        let _ = r_coll.update_one(filter, update).with_options(opts).await;
+                    }
+                }
+            });
+        }
+    }
 }

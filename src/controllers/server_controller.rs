@@ -396,6 +396,8 @@ pub async fn add_server(
         telemetry: new_server.telemetry.clone(),
     });
 
+    state.persist_snapshot().await;
+
     Ok((StatusCode::CREATED, Json(new_server)))
 }
 
@@ -490,6 +492,128 @@ pub async fn delete_server(
     }
 
     Ok(StatusCode::NO_CONTENT)
+}
+
+pub async fn start_server(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> Result<Json<Server>, AppError> {
+    let now = Utc::now().timestamp();
+    let mut servers = state.servers.write().await;
+    let server = servers
+        .iter_mut()
+        .find(|s| s.id == id || s.server_id == id)
+        .ok_or_else(|| AppError::NotFound(format!("Server '{}' not found", id)))?;
+
+    server.status = "active".to_string();
+    server.active_since = now;
+    server.idle_since = None;
+    server.idle_minutes = 0;
+    server.telemetry = Some(fetch_live_telemetry(server));
+
+    let updated = server.clone();
+    drop(servers);
+
+    state.broadcast_event(&WsEvent {
+        r#type: "SERVER_STATUS_CHANGED".to_string(),
+        project_id: Some(updated.project_id.clone()),
+        server_id: Some(updated.id.clone()),
+        status: Some("active".to_string()),
+        idle_minutes: Some(0),
+        message: Some(format!("Server '{}' manually started and returned to active fleet.", updated.name)),
+        telemetry: updated.telemetry.clone(),
+    });
+
+    Ok(Json(updated))
+}
+
+pub async fn stop_server(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> Result<Json<Server>, AppError> {
+    let now = Utc::now().timestamp();
+    let mut servers = state.servers.write().await;
+    let server = servers
+        .iter_mut()
+        .find(|s| s.id == id || s.server_id == id)
+        .ok_or_else(|| AppError::NotFound(format!("Server '{}' not found", id)))?;
+
+    server.status = "stopped".to_string();
+    server.idle_since = Some(now);
+
+    let updated = server.clone();
+    drop(servers);
+
+    state.broadcast_event(&WsEvent {
+        r#type: "SERVER_STATUS_CHANGED".to_string(),
+        project_id: Some(updated.project_id.clone()),
+        server_id: Some(updated.id.clone()),
+        status: Some("stopped".to_string()),
+        idle_minutes: Some(0),
+        message: Some(format!("Server '{}' stopped. Compute burn paused.", updated.name)),
+        telemetry: updated.telemetry.clone(),
+    });
+
+    Ok(Json(updated))
+}
+
+pub async fn reboot_server(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> Result<Json<Server>, AppError> {
+    let mut servers = state.servers.write().await;
+    let server = servers
+        .iter_mut()
+        .find(|s| s.id == id || s.server_id == id)
+        .ok_or_else(|| AppError::NotFound(format!("Server '{}' not found", id)))?;
+
+    server.status = "rebooting".to_string();
+
+    let target_id = server.id.clone();
+    let target_proj = server.project_id.clone();
+    let target_name = server.name.clone();
+    let updated = server.clone();
+    drop(servers);
+
+    state.broadcast_event(&WsEvent {
+        r#type: "SERVER_STATUS_CHANGED".to_string(),
+        project_id: Some(target_proj.clone()),
+        server_id: Some(target_id.clone()),
+        status: Some("rebooting".to_string()),
+        idle_minutes: Some(0),
+        message: Some(format!("Server '{}' reboot initiated.", target_name)),
+        telemetry: updated.telemetry.clone(),
+    });
+
+    let bg_state = state.clone();
+    tokio::spawn(async move {
+        tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+        let now = Utc::now().timestamp();
+
+        let mut servers = bg_state.servers.write().await;
+        if let Some(s) = servers.iter_mut().find(|s| s.id == target_id) {
+            s.status = "active".to_string();
+            s.active_since = now;
+            s.idle_since = None;
+            s.idle_minutes = 0;
+            s.telemetry = Some(fetch_live_telemetry(s));
+
+            let restored_telem = s.telemetry.clone();
+            drop(servers);
+
+            bg_state.broadcast_event(&WsEvent {
+                r#type: "SERVER_STATUS_CHANGED".to_string(),
+                project_id: Some(target_proj),
+                server_id: Some(target_id),
+                status: Some("active".to_string()),
+                idle_minutes: Some(0),
+                message: Some(format!("Server '{}' reboot completed. All subsystems operational.", target_name)),
+                telemetry: restored_telem,
+            });
+        }
+    });
+
+    Ok(Json(updated))
 }
 
 // PM Feature: Terminate all idle servers to stop cloud burn immediately
@@ -741,6 +865,26 @@ pub async fn terminal_exec_server(
     } else {
         output
     };
+
+    // Progressive WebSocket streaming for multi-line commands in Terminal 2.0
+    let stream_lines: Vec<String> = final_output.lines().map(|s| s.to_string()).collect();
+    let stream_server_id = server.id.clone();
+    let stream_proj_id = server.project_id.clone();
+    let bg_state = state.clone();
+    tokio::spawn(async move {
+        for line in stream_lines {
+            bg_state.broadcast_event(&WsEvent {
+                r#type: "LOG_CHUNK".to_string(),
+                project_id: Some(stream_proj_id.clone()),
+                server_id: Some(stream_server_id.clone()),
+                status: None,
+                idle_minutes: None,
+                message: Some(line),
+                telemetry: None,
+            });
+            tokio::time::sleep(tokio::time::Duration::from_millis(15)).await;
+        }
+    });
 
     Ok(Json(ServerTerminalExecResponse {
         session_id,
