@@ -46,6 +46,7 @@ pub struct AuthUser {
 
 #[derive(Debug, Deserialize)]
 pub struct LoginRequest {
+    #[serde(alias = "username")]
     pub email: String,
     pub password: String,
 }
